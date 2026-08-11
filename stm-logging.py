@@ -11,7 +11,9 @@ from pyqtgraph.Qt import QtCore, QtWidgets
 port_name = "/dev/cu.debug-console"
 baud = 115200
 filename = "stm_data_" + time.strftime("%Y_%m_%d-%H_%M_%S") + ".csv"
-window_size = 1000 # how many data points to show at once
+sample_rate = 1 # set in arduino, informs program of sample rate in milliseconds
+window_size = 2000 # how many data points to show at once
+speed_average_time = 500 # how many data points to average for speed calculations
 
 # --- set up serial port ---
 try:
@@ -27,6 +29,8 @@ csv_writer.writerow(["Timestamp", "Object_Angle", "Mirror_Angle", "Trigger_Sent"
 # --- rolling window buffers ---
 obj_history = deque(maxlen=window_size)
 mir_history = deque(maxlen=window_size)
+obj_short_hist = deque(maxlen=speed_average_time)
+mir_short_hist = deque(maxlen=speed_average_time)
 
 # -- pyqt gui setup ---
 app = QtWidgets.QApplication(sys.argv)
@@ -64,6 +68,15 @@ control_layout.addStretch()
 
 main_layout.addLayout(control_layout)
 
+# status bar
+status_bar = QtWidgets.QStatusBar()
+actual_obj_rpm = QtWidgets.QLabel("actual object speed: 0 RPM")
+actual_mir_rpm = QtWidgets.QLabel("actual mirror speed: 0 RPM")
+status_bar.addPermanentWidget(actual_obj_rpm)
+status_bar.addPermanentWidget(actual_mir_rpm)
+
+main_window.setStatusBar(status_bar)
+
 # pyqtgraph layout
 plot_widget = pg.GraphicsLayoutWidget()
 main_layout.addWidget(plot_widget)
@@ -99,6 +112,14 @@ btn_stop.clicked.connect(send_stop)
 btn_set_rpm.clicked.connect(send_rpm)
 rpm_input.returnPressed.connect(send_rpm)
 
+# --- speed calculations ---
+def calcSpeed(window):
+    distance = window[-1] - window[0]
+    if distance < 0:
+        distance += 360
+    time = speed_average_time * sample_rate * 0.001
+    return round((distance / time), 1)
+
 # --- main loop ---
 def update():
     updated = False
@@ -131,6 +152,8 @@ def update():
                 # append to rolling buffers
                 obj_history.append(obj_val)
                 mir_history.append(mir_val)
+                obj_short_hist.append(obj_val)
+                mir_short_hist.append(mir_val)
 
         except (ValueError, IndexError):
             # skip unparseable lines
@@ -139,6 +162,11 @@ def update():
         # update plot data
         curve_obj.setData(list(obj_history))
         curve_mir.setData(list(mir_history))
+
+        obj_speed = calcSpeed(obj_short_hist)
+        mir_speed = calcSpeed(mir_short_hist)
+        actual_obj_rpm.setText(f"actual object speed: {obj_speed} RPM")
+        actual_mir_rpm.setText(f"actual object speed: {mir_speed} RPM")
 
 # start timer and cleanup
 timer = QtCore.QTimer()
