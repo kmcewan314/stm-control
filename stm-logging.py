@@ -122,7 +122,7 @@ def calcSpeed(window):
         distance += 360
     time = speed_average_time * sample_rate * 0.001
     dps = (distance/time)
-    return round(dps*6, 1)
+    return round(dps/6, 1)
 
 # --- main loop ---
 def update():
