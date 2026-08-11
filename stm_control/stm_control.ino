@@ -1,3 +1,5 @@
+#include <AccelStepper.h>
+
 // --- pin definitions ---
 const int TRIG_PIN = 0;
 const int PUL_PIN = 12;
@@ -13,9 +15,6 @@ int STEPS_PER_REV = 3200; // controlled by dip switches
 int STEP_PULSES_PER_REV = 1500; // only change if changing motors
 int MIR_PULSES_PER_REV = 4320; // gear ratio of motor * (CPR of encoder / 4)
 
-// --- stepper motor speed control ---
-volatile int TARGET_RPM = 60; // set initial RPM
-
 // --- output timing ---
 int SAMPLE_INTERVAL_MS = 1; // how often to record motor positions, in milliseconds
 int TRIG_INTERVAL_MS = 100; // how often to send trigger signal to camera, in milliseconds
@@ -23,12 +22,12 @@ int TRIG_LENGTH = 2; // how long the trigger pulse is, in *micro*seconds
 
 // *** END EDITABLE VARIABLES ***
 
+// set up stepper object for motor control
+AccelStepper stepper(AccelStepper::DRIVER, PUL_PIN, DIR_PIN);
 
-// convert RPM speed to step delay
-volatile int STEP_DELAY_US = 60 * 1000000 / (TARGET_RPM * STEPS_PER_REV); 
-// convert intervals to microseconds
-int TRIG_INTERVAL_US = TRIG_INTERVAL_MS * 1000;
-int SAMPLE_INTERVAL_US = SAMPLE_INTERVAL_MS * 1000;
+// shared states
+volatile bool systemActive = false;
+volatile float target_steps_per_sec = 3200.0;
 
 // --- ISR variables ---
 volatile long step_edge_count = 0;
@@ -36,18 +35,15 @@ volatile long mir_edge_count = 0;
 
 // --- logging variables ---
 unsigned long last_sample_time = 0;
-unsigned long last_step_pulse_time = 0;
 unsigned long last_trig_time = 0;
+// convert intervals to microseconds
+int TRIG_INTERVAL_US = TRIG_INTERVAL_MS * 1000;
+int SAMPLE_INTERVAL_US = SAMPLE_INTERVAL_MS * 1000;
 
 
 // --- interrupt service routines (ISR) ---
-void stepEncoderISR() {
-  step_edge_count++;
-}
-
-void mirEncoderISR() {
-  mir_edge_count++;
-}
+void stepEncoderISR() { step_edge_count++; }
+void mirEncoderISR() { mir_edge_count++; }
 
 // --- other functions ---
 // send pulse
@@ -65,7 +61,6 @@ void sendSyncPulse() {
 }
 
 // start/stop control with keyboard 
-bool systemActive = false;
 void checkSerialCommands() {
   while (Serial.available() > 0) {
     String cmd = Serial.readStringUntil('\n');
@@ -84,9 +79,7 @@ void checkSerialCommands() {
       // if not start/stop signal, try parsing as new target RPM
       int newRPM = cmd.toInt();
       if (newRPM > 0) {
-        // recalculate pulse delay
-        STEP_DELAY_US = (60UL * 1000000UL) / ((unsigned long)newRPM * STEPS_PER_REV);
-
+        target_steps_per_sec = ((float)newRPM * STEPS_PER_REV) / 60.0;
         Serial.print("RPM_UPDATED:");
         Serial.println(newRPM);
       }
@@ -95,6 +88,7 @@ void checkSerialCommands() {
 }
 
 // --- runtime code ---
+// *** core 0: encoders and trigger ***
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
@@ -102,9 +96,6 @@ void setup() {
   pinMode(TRIG_PIN, OUTPUT);
   digitalWrite(TRIG_PIN, HIGH);
 
-  pinMode(PUL_PIN, OUTPUT);
-  pinMode(DIR_PIN, OUTPUT);
-  
   pinMode(STEP_ENC_PIN, INPUT_PULLDOWN);
   attachInterrupt(digitalPinToInterrupt(STEP_ENC_PIN), stepEncoderISR, RISING);
 
@@ -122,14 +113,6 @@ void loop() {
 
   if (systemActive) {
     bool trig_sent = false;
-
-    // --- stepper motor drive signal ---
-    if (now_us - last_step_pulse_time >= STEP_DELAY_US) {
-      last_step_pulse_time = now_us;
-      digitalWrite(PUL_PIN, HIGH);
-      delayMicroseconds(3);
-      digitalWrite(PUL_PIN, LOW);
-    }
 
     // --- trigger signal ---
     if (now_us - last_trig_time >= TRIG_INTERVAL_US) {
@@ -168,3 +151,18 @@ void loop() {
     }
   }
 }
+
+
+// *** core 1: stepper motor control ***
+void setup1() {
+  stepper.setMaxSpeed(20000.0);
+  stepper.setSpeed(target_steps_per_sec);
+}
+
+void loop1() {
+  if (systemActive) {
+    stepper.setSpeed(target_steps_per_sec);
+    stepper.runSpeed();
+  }
+}
+
