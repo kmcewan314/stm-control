@@ -8,10 +8,10 @@ import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore, QtWidgets
 
 # --- configuration ---
-port_name = "/dev/cu.debug-console"
+port_name = "COM3"
 baud = 115200
 filename = "stm_data_" + time.strftime("%Y_%m_%d-%H_%M_%S") + ".csv"
-filepath = "C:\\Users\\mitmu\\Documents\\stm-control\\stm_motor_recordings\\" # change on each computer
+filepath = "C:\\Users\\mitmu\\Documents\\stm-control\\stm_motor_recordings\\"
 sample_rate = 1 # set in arduino, informs program of sample rate in milliseconds
 window_size = 2000 # how many data points to show at once
 speed_average_time = 500 # how many data points to average for speed calculations
@@ -169,7 +169,7 @@ def update():
         obj_speed = calcSpeed(obj_short_hist)
         mir_speed = calcSpeed(mir_short_hist)
         actual_obj_rpm.setText(f"actual object speed: {obj_speed} RPM")
-        actual_mir_rpm.setText(f"actual object speed: {mir_speed} RPM")
+        actual_mir_rpm.setText(f"actual mirror speed: {mir_speed} RPM")
 
 # start timer and cleanup
 timer = QtCore.QTimer()
