@@ -11,6 +11,7 @@ from pyqtgraph.Qt import QtCore, QtWidgets
 port_name = "/dev/cu.debug-console"
 baud = 115200
 filename = "stm_data_" + time.strftime("%Y_%m_%d-%H_%M_%S") + ".csv"
+filepath = "C:\\Users\\mitmu\\Documents\\stm-control\\stm_motor_recordings\\" # change on each computer
 sample_rate = 1 # set in arduino, informs program of sample rate in milliseconds
 window_size = 2000 # how many data points to show at once
 speed_average_time = 500 # how many data points to average for speed calculations
@@ -22,7 +23,9 @@ except serial.SerialException:
     print("SerialException: serial port could not be opened")
 
 # --- csv file setup ---
-csv_file = open(filename, "w", newline="")
+fullname = "".join([filepath, filename])
+
+csv_file = open(fullname, "w", newline="")
 csv_writer = csv.writer(csv_file)
 csv_writer.writerow(["Timestamp", "Object_Angle", "Mirror_Angle", "Trigger_Sent"])
 
