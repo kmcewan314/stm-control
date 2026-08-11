@@ -120,8 +120,9 @@ def calcSpeed(window):
     distance = window[-1] - window[0]
     if distance < 0:
         distance += 360
+    rot = distance / 360
     time = speed_average_time * sample_rate * 0.001
-    return round((distance / time), 1)
+    return round((rot/time), 1)
 
 # --- main loop ---
 def update():
