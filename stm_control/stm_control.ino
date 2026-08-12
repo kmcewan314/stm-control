@@ -12,7 +12,7 @@ const int MIR_ENC_PIN = 15;
 
 // --- motor resolutions ---
 int STEPS_PER_REV = 8000; // controlled by dip switches
-int STEP_PULSES_PER_REV = 2000; // only change if changing motors
+int STEP_PULSES_PER_REV = 1000; // only change if changing motors
 int MIR_PULSES_PER_REV = 4320; // gear ratio of motor * (CPR of encoder / 4)
 
 // --- output timing ---
@@ -25,7 +25,7 @@ int TRIG_LENGTH = 2; // how long the trigger pulse is, in *micro*seconds
 // set up stepper object for motor control
 AccelStepper stepper(AccelStepper::DRIVER, PUL_PIN, DIR_PIN);
 // acceleration limit in steps/sec^2 (STEPS_PER_REV steps/sec^2 = ramps up/down by 1 RPS per second)
-const float ACCELERATION_STEPS_SEC2 = 4000.0;
+const float ACCELERATION_STEPS_SEC2 = 1000.0;
 
 // shared states
 volatile bool systemActive = false;

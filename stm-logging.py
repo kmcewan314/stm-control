@@ -14,7 +14,7 @@ filename = "stm_data_" + time.strftime("%Y_%m_%d-%H_%M_%S") + ".csv"
 filepath = "C:\\Users\\mitmu\\Documents\\stm-control\\stm_motor_recordings\\"
 sample_rate = 5 # set in arduino, informs program of sample rate in milliseconds
 window_size = 2000 # how many data points to show at once
-speed_average_time = 50 # how many data points to average for speed calculations
+speed_average_samples = 50 # how many data points to average for speed calculations
 
 # --- set up serial port ---
 try:
@@ -32,8 +32,9 @@ csv_writer.writerow(["Timestamp", "Object_Angle", "Mirror_Angle", "Trigger_Sent"
 # --- rolling window buffers ---
 obj_history = deque(maxlen=window_size)
 mir_history = deque(maxlen=window_size)
-obj_short_hist = deque(maxlen=speed_average_time)
-mir_short_hist = deque(maxlen=speed_average_time)
+obj_short_hist = deque(maxlen=speed_average_samples)
+mir_short_hist = deque(maxlen=speed_average_samples)
+time_short_hist = deque(maxlen=speed_average_samples)
 
 # -- pyqt gui setup ---
 app = QtWidgets.QApplication(sys.argv)
@@ -116,24 +117,24 @@ btn_set_rpm.clicked.connect(send_rpm)
 rpm_input.returnPressed.connect(send_rpm)
 
 # --- speed calculations ---
-def calcSpeed(window):
-    if len(window) < 2:
+def calcSpeed(angle_window, time_window):
+    if len(angle_window) < 2:
         # if only 1 sample in window, can't calculate
         return 0.0
 
-    distance = window[-1] - window[0] # get degrees traveled durign the window
+    distance = angle_window[-1] - angle_window[0] # get degrees traveled durign the window
     if distance < 0:
         # if object has wrapped around from 360 back to 0, it's negative so add 360
         distance += 360
 
-    # time in s = (# of samples) * (sample rate in ms) * (0.001 s per ms)
-    time = len(window) * sample_rate * 0.001
-    if not time:
+    # time in seconds = time delta / 1 million microseconds per second
+    time_sec = (time_window[-1] - time_window[0]) / 1000000.0
+    if not time_sec:
         # can't divide by 0
         return 0.0
 
     # degrees per second = (degrees traveled)/(time in seconds)
-    dps = (distance/time)
+    dps = (distance/time_sec)
     # rev per minute = (degrees per s) * (60 seconds per minute) / (360 degrees per rev)
     return int(dps/6.0)
 
@@ -167,6 +168,7 @@ def update():
                 mir_history.append(mir_val)
                 obj_short_hist.append(obj_val)
                 mir_short_hist.append(mir_val)
+                time_short_hist.append(timestamp)
 
         except (ValueError, IndexError):
             # skip unparseable lines
@@ -176,8 +178,8 @@ def update():
         curve_obj.setData(list(obj_history))
         curve_mir.setData(list(mir_history))
 
-        obj_speed = calcSpeed(obj_short_hist)
-        mir_speed = calcSpeed(mir_short_hist)
+        obj_speed = calcSpeed(obj_short_hist, time_short_hist)
+        mir_speed = calcSpeed(mir_short_hist, time_short_hist)
         actual_obj_rpm.setText(f"actual object speed: {obj_speed} RPM")
         actual_mir_rpm.setText(f"actual mirror speed: {mir_speed} RPM")
 
