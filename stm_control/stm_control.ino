@@ -27,7 +27,7 @@ AccelStepper stepper(AccelStepper::DRIVER, PUL_PIN, DIR_PIN);
 
 // shared states
 volatile bool systemActive = false;
-volatile float target_steps_per_sec = 3200.0;
+volatile float target_steps_per_sec = 1600.0;
 
 // --- ISR variables ---
 volatile long step_edge_count = 0;
@@ -103,6 +103,13 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(MIR_ENC_PIN), mirEncoderISR, RISING);
 }
 
+// *** core 1: stepper motor control ***
+void setup1() {
+  stepper.setMaxSpeed(6400.0);
+  stepper.setSpeed(target_steps_per_sec);
+}
+
+// *** core 0: encoders and trigger ***
 void loop() {
   // put your main code here, to run repeatedly:
   // --- time check ---
@@ -152,13 +159,7 @@ void loop() {
   }
 }
 
-
 // *** core 1: stepper motor control ***
-void setup1() {
-  stepper.setMaxSpeed(20000.0);
-  stepper.setSpeed(target_steps_per_sec);
-}
-
 void loop1() {
   if (systemActive) {
     stepper.setSpeed(target_steps_per_sec);
