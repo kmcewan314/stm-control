@@ -12,7 +12,7 @@ const int MIR_ENC_PIN = 15;
 
 // --- motor resolutions ---
 int STEPS_PER_REV = 8000; // controlled by dip switches
-int STEP_PULSES_PER_REV = 1000; // only change if changing motors
+int STEP_PULSES_PER_REV = 2000; // only change if changing motors
 int MIR_PULSES_PER_REV = 4320; // gear ratio of motor * (CPR of encoder / 4)
 
 // --- output timing ---
@@ -176,9 +176,6 @@ void loop1() {
       // if not already stopped, stop as quickly as possible within acceleration limit
       stepper.stop();
       stepper.run();
-    } else {
-      // make sure we're ready to start again
-      stepper.moveTo(stepper.currentPosition() + 2000000000L);
     }
   }
 }
