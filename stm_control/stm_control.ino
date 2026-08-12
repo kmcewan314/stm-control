@@ -12,11 +12,11 @@ const int MIR_ENC_PIN = 15;
 
 // --- motor resolutions ---
 int STEPS_PER_REV = 3200; // controlled by dip switches
-int STEP_PULSES_PER_REV = 1500; // only change if changing motors
+int STEP_PULSES_PER_REV = 1000; // only change if changing motors
 int MIR_PULSES_PER_REV = 4320; // gear ratio of motor * (CPR of encoder / 4)
 
 // --- output timing ---
-int SAMPLE_INTERVAL_MS = 1; // how often to record motor positions, in milliseconds
+int SAMPLE_INTERVAL_MS = 5; // how often to record motor positions, in milliseconds
 int TRIG_INTERVAL_MS = 100; // how often to send trigger signal to camera, in milliseconds
 int TRIG_LENGTH = 2; // how long the trigger pulse is, in *micro*seconds
 
@@ -143,17 +143,13 @@ void loop() {
       float mir_deg  = fmod((current_mir_edges % MIR_PULSES_PER_REV) * (360.0 / MIR_PULSES_PER_REV), 360.0);
 
       // csv ouput to serial port
-      // format: "Timestamp:<value>,Object_Angle:<value>,Mirror_Angle:<value>,Trigger_Sent:<value>"
-      Serial.print("Timestamp:");
+      // format: "<timestamp>,<object angle>,<mirror angle>,<trigger sent T/F>"
       Serial.print(now_us);
       Serial.print(",");
-      Serial.print("Object_Angle:");
       Serial.print(step_deg, 2);
       Serial.print(",");
-      Serial.print("Mirror_Angle:");
       Serial.print(mir_deg, 2);
       Serial.print(",");
-      Serial.print("Trigger_Sent:");
       Serial.println(trig_sent);
     }
   }
