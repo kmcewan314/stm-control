@@ -11,7 +11,7 @@ const int MIR_ENC_PIN = 15;
 // **** EDITABLE VARIABLES ***
 
 // --- motor resolutions ---
-int STEPS_PER_REV = 3200; // controlled by dip switches
+int STEPS_PER_REV = 8000; // controlled by dip switches
 int STEP_PULSES_PER_REV = 1000; // only change if changing motors
 int MIR_PULSES_PER_REV = 4320; // gear ratio of motor * (CPR of encoder / 4)
 
@@ -24,6 +24,8 @@ int TRIG_LENGTH = 2; // how long the trigger pulse is, in *micro*seconds
 
 // set up stepper object for motor control
 AccelStepper stepper(AccelStepper::DRIVER, PUL_PIN, DIR_PIN);
+// acceleration limit in steps/sec^2 (STEPS_PER_REV steps/sec^2 = ramps up/down by 1 RPS per second)
+const float ACCELERATION_STEPS_SEC2 = 4000.0;
 
 // shared states
 volatile bool systemActive = false;
@@ -103,13 +105,6 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(MIR_ENC_PIN), mirEncoderISR, RISING);
 }
 
-// *** core 1: stepper motor control ***
-void setup1() {
-  stepper.setMaxSpeed(6400.0);
-  stepper.setSpeed(target_steps_per_sec);
-}
-
-// *** core 0: encoders and trigger ***
 void loop() {
   // put your main code here, to run repeatedly:
   // --- time check ---
@@ -155,11 +150,36 @@ void loop() {
   }
 }
 
+
 // *** core 1: stepper motor control ***
+void setup1() {
+  stepper.setAcceleration(ACCELERATION_STEPS_SEC2); // smooth acceleration rate
+  stepper.setMaxSpeed(target_steps_per_sec); // speed it will move after acceleration
+  stepper.moveTo(2000000000L); // set destination 2 billion steps away
+}
+
 void loop1() {
   if (systemActive) {
-    stepper.setSpeed(target_steps_per_sec);
-    stepper.runSpeed();
+    // update speed limit
+    stepper.setMaxSpeed(target_steps_per_sec);
+
+    // move destination further ahead when it gets close to keep continuous motion
+    if (stepper.distanceToGo() < 100000) {
+      stepper.moveTo(stepper.currentPosition() + 2000000000L);
+    }
+
+    // run with smooth acceleration
+    stepper.run();
+
+  } else {
+    if (stepper.Speed() != 0) {
+      // if not already stopped, stop as quickly as possible within acceleration limit
+      stepper.stop();
+      stepper.run();
+    } else {
+      // make sure we're ready to start again
+      stepper.moveTo(stepper.currentPosition + 2000000000L);
+    }
   }
 }
 
