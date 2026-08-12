@@ -12,9 +12,9 @@ port_name = "COM3"
 baud = 115200
 filename = "stm_data_" + time.strftime("%Y_%m_%d-%H_%M_%S") + ".csv"
 filepath = "C:\\Users\\mitmu\\Documents\\stm-control\\stm_motor_recordings\\"
-sample_rate = 1 # set in arduino, informs program of sample rate in milliseconds
+sample_rate = 5 # set in arduino, informs program of sample rate in milliseconds
 window_size = 2000 # how many data points to show at once
-speed_average_time = 500 # how many data points to average for speed calculations
+speed_average_time = 50 # how many data points to average for speed calculations
 
 # --- set up serial port ---
 try:
@@ -117,12 +117,25 @@ rpm_input.returnPressed.connect(send_rpm)
 
 # --- speed calculations ---
 def calcSpeed(window):
-    distance = window[-1] - window[0]
+    if len(window) < 2:
+        # if only 1 sample in window, can't calculate
+        return 0.0
+
+    distance = window[-1] - window[0] # get degrees traveled durign the window
     if distance < 0:
+        # if object has wrapped around from 360 back to 0, it's negative so add 360
         distance += 360
-    time = speed_average_time * sample_rate * 0.001
+
+    # time in s = (# of samples) * (sample rate in ms) * (0.001 s per ms)
+    time = len(window) * sample_rate * 0.001
+    if not time:
+        # can't divide by 0
+        return 0.0
+
+    # degrees per second = (degrees traveled)/(time in seconds)
     dps = (distance/time)
-    return round(dps/6, 1)
+    # rev per minute = (degrees per s) * (60 seconds per minute) / (360 degrees per rev)
+    return int(dps/6.0)
 
 # --- main loop ---
 def update():
@@ -137,15 +150,11 @@ def update():
             parts = line.split(",")
             timestamp, obj_val, mir_val, trig_sent = None, None, None, None
 
-            for part in parts:
-                if "Timestamp:" in part:
-                    timestamp = int(part.split(":")[1])
-                elif "Object_Angle:" in part:
-                    obj_val = float(part.split(":")[1])
-                elif "Mirror_Angle:" in part:
-                    mir_val = float(part.split(":")[1])
-                elif "Trigger_Sent:" in part:
-                    trig_sent = bool(int(part.split(":")[1]))
+            if len(parts) == 4:
+                timestamp = int(parts[0])
+                obj_val = float(parts[1])
+                mir_val = float(parts[2])
+                trig_sent = bool(int(parts[3]))
 
             if None not in {timestamp, obj_val, mir_val, trig_sent}:
                 updated = True
