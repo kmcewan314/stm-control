@@ -11,7 +11,7 @@ from pyqtgraph.Qt import QtCore, QtWidgets
 port_name = "COM3"
 baud = 115200
 filename = "stm_data_" + time.strftime("%Y_%m_%d-%H_%M_%S") + ".csv"
-filepath = "C:\\Users\\mitmu\\Documents\\stm-control\\stm_motor_recordings\\"
+filepath = "C:\\Users\\mitmu\\Documents\\spacetime-modulator\\stm_motor_recordings\\"
 sample_rate = 5 # set in arduino, informs program of sample rate in milliseconds
 window_size = 2000 # how many data points to show at once
 speed_average_samples = 50 # how many data points to average for speed calculations
