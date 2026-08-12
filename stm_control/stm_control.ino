@@ -172,13 +172,13 @@ void loop1() {
     stepper.run();
 
   } else {
-    if (stepper.Speed() != 0) {
+    if (stepper.speed() != 0) {
       // if not already stopped, stop as quickly as possible within acceleration limit
       stepper.stop();
       stepper.run();
     } else {
       // make sure we're ready to start again
-      stepper.moveTo(stepper.currentPosition + 2000000000L);
+      stepper.moveTo(stepper.currentPosition() + 2000000000L);
     }
   }
 }
