@@ -4,10 +4,18 @@ const int PUL_PIN = 12;
 const int DIR_PIN = 13;
 const int STEP_ENC_PIN = 14;
 
-int STEPS_PER_REV = 8000; // controlled by dip switches
+int STEPS_PER_REV = 3200; // controlled by dip switches
 int STEP_PULSES_PER_REV = 1000; // only change if changing motors
 
-int SAMPLE_INTERVAL = 5000; // how often to record motor positions, in milliseconds
+float POSITIVE_MAX_ACC = 25.1;
+float NEGATIVE_MAX_ACC = -10.0;
+
+int SAMPLE_INTERVAL = 5000; // how often to record motor positions, in microseconds
+volatile int targetrpm = 30;
+volatile int currentrpm = 30;
+volatile int ramp = 800;
+volatile int stepspeed = 1600;
+volatile bool systemActive = false;
 
 MoToStepper stepper(STEPS_PER_REV, STEPDIR);
 
@@ -19,6 +27,50 @@ long mot_step_count = 0;
 // --- interrupt service routines (ISR) ---
 void stepEncoderISR() { step_edge_count++; }
 
+int calcRamp(int oldrpm, int newrpm) {
+  int delta = newrpm - oldrpm;
+  if (delta > 0) {
+    // speeding up
+    float exact_ramp = (delta * delta * 0.0055) / POSITIVE_MAX_ACC;
+    return static_cast<int>(exact_ramp);
+  } else {
+    float exact_ramp = (delta * delta * 0.0055) / NEGATIVE_MAX_ACC;
+    return -1 * static_cast<int>(exact_ramp);
+  }
+}
+
+int calcStepSpeed(int RPM) {
+  return static_cast<int>(RPM*3200/6);
+}
+
+// start/stop control with keyboard 
+void checkSerialCommands() {
+  while (Serial.available() > 0) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+
+    if (cmd.length() == 0) continue;
+
+    if (cmd == "START") {
+      ramp = calcRamp(currentrpm, targetrpm);
+      Serial.println("SYSTEM_STARTED");
+    } else if (cmd == "STOP") {
+      targetrpm = 0;
+      ramp = calcRamp(currentrpm, targetrpm);
+      Serial.println("SYSTEM_STOPPED");
+    } else {
+      // if not start/stop signal, try parsing as new target RPM
+      int newrpm = cmd.toInt();
+      if (newrpm > 0) {
+        targetrpm = newrpm;
+        stepspeed = calcStepSpeed(targetrpm);
+        ramp = calcRamp(currentrpm, targetrpm); 
+        Serial.print("RPM_UPDATED:");
+        Serial.println(targetrpm);
+      }
+    }
+  }
+}
 
 void setup() {
   // put your setup code here, to run once:
@@ -30,30 +82,19 @@ void setup() {
 
   stepper.attach(PUL_PIN, DIR_PIN);
   stepper.setZero();
-  stepper.setRampLen(3200);
-  stepper.setMaxSpeed(3200);
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
   unsigned long now = micros();
 
-  if (now - last_sample_time >= SAMPLE_INTERVAL) {
-    last_sample_time = now;
-    noInterrupts();
-    long current_step_edges = step_edge_count;
-    interrupts();
-    mot_step_count = stepper.readSteps();
+  checkSerialCommands();
 
-    Serial.print("Encoder count: ");
-    Serial.print(current_step_edges);
-    Serial.print("        Motor count: ");
-    Serial.println(mot_step_count);
-  }
-  if (mot_step_count < 32000) {
+  if (targetrpm != currentrpm) {
+    stepper.setSpeedSteps(stepspeed, ramp);
     stepper.rotate(1);
   } else {
-    stepper.rotate(0);
+    stepper.rotate(1);
   }
 
 }
