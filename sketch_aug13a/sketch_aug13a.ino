@@ -11,11 +11,12 @@ float POSITIVE_MAX_ACC = 25.1;
 float NEGATIVE_MAX_ACC = -10.0;
 
 int SAMPLE_INTERVAL = 5000; // how often to record motor positions, in microseconds
-volatile int targetrpm = 30;
-volatile int currentrpm = 30;
+volatile int targetrpm = 0;
+volatile int currentrpm = 0;
 volatile int ramp = 800;
-volatile int stepspeed = 1600;
+volatile int stepspeed = 0;
 volatile bool systemActive = false;
+volatile int last_change = 0;
 
 MoToStepper stepper(STEPS_PER_REV, STEPDIR);
 
@@ -52,19 +53,32 @@ void checkSerialCommands() {
     if (cmd.length() == 0) continue;
 
     if (cmd == "START") {
-      ramp = calcRamp(currentrpm, targetrpm);
+      systemActive = true;
+      if (targetrpm > 0) {
+        stepspeed = calcStepSpeed(targetrpm);
+        ramp = calcRamp(currentrpm, targetrpm);
+        stepper.setSpeedSteps(stepspeed, ramp);
+        stepper.rotate(1);
+      }
       Serial.println("SYSTEM_STARTED");
     } else if (cmd == "STOP") {
+      systemActive = false;
       targetrpm = 0;
-      ramp = calcRamp(currentrpm, targetrpm);
+      stepper.rotate(0);
       Serial.println("SYSTEM_STOPPED");
+      currentrpm = 0;
     } else {
       // if not start/stop signal, try parsing as new target RPM
       int newrpm = cmd.toInt();
       if (newrpm > 0) {
         targetrpm = newrpm;
         stepspeed = calcStepSpeed(targetrpm);
-        ramp = calcRamp(currentrpm, targetrpm); 
+        ramp = calcRamp(currentrpm, targetrpm);
+        if (systemActive) {
+          stepper.setSpeedSteps(stepspeed, ramp);
+          stepper.rotate(1);
+        }
+        currentrpm = targetrpm;
         Serial.print("RPM_UPDATED:");
         Serial.println(targetrpm);
       }
@@ -86,15 +100,7 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  unsigned long now = micros();
-
   checkSerialCommands();
 
-  if (targetrpm != currentrpm) {
-    stepper.setSpeedSteps(stepspeed, ramp);
-    stepper.rotate(1);
-  } else {
-    stepper.rotate(1);
-  }
 
 }
