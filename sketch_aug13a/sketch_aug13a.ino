@@ -11,9 +11,9 @@ float ACCEL_UP = 2000.0;
 float ACCEL_DOWN = 2000.0;
 
 int SAMPLE_INTERVAL = 5000; // how often to record motor positions, in microseconds
+int RAMP_STEPS = 2400;
 volatile int targetrpm = 0;
 volatile int currentrpm = 0;
-volatile int ramp = 800;
 volatile int stepspeed = 0;
 volatile bool systemActive = false;
 volatile int last_change = 0;
@@ -28,22 +28,22 @@ long mot_step_count = 0;
 // --- interrupt service routines (ISR) ---
 void stepEncoderISR() { step_edge_count++; }
 
-int calcRamp(int oldrpm, int newrpm) {
-  if (oldrpm == newrpm) return 1;
+// int calcRamp(int oldrpm, int newrpm) {
+//   if (oldrpm == newrpm) return 1;
 
-  // convert to steps per second
-  float v_old = ((float)oldrpm * STEP_PER_REV) / 60.0;
-  float v_new = ((float)newrpm * STEPS_PER_REV) / 60.0;
+//   // convert to steps per second
+//   float v_old = ((float)oldrpm * STEPS_PER_REV) / 60.0;
+//   float v_new = ((float)newrpm * STEPS_PER_REV) / 60.0;
 
-  float accel = (v_old > v_new) ? ACCEL_DOWN : ACCEL_UP;
+//   float accel = (v_old > v_new) ? ACCEL_DOWN : ACCEL_UP;
 
-  // s = | v_new^2 - v_old^2 | / (2 * a)
-  steps_needed = fabsf((v_new * v_new) - (v_old * v_old)) / (2.0 * accel);
+//   // s = | v_new^2 - v_old^2 | / (2 * a)
+//   float steps_needed = fabsf((v_new * v_new) - (v_old * v_old)) / (2.0 * accel);
 
-  int ramp_steps = static_cast<int>(steps_needed);
-  return (ramp_steps < 1) ? 1 : ramp_steps;
+//   int ramp_steps = static_cast<int>(steps_needed);
+//   return (ramp_steps < 1) ? 1 : ramp_steps;
   
-}
+// }
 
 int calcStepSpeed(int RPM) {
   return static_cast<int>(RPM*3200/6);
@@ -61,8 +61,7 @@ void checkSerialCommands() {
       systemActive = true;
       if (targetrpm > 0) {
         stepspeed = calcStepSpeed(targetrpm);
-        ramp = calcRamp(currentrpm, targetrpm);
-        stepper.setSpeedSteps(stepspeed, ramp);
+        stepper.setSpeedSteps(stepspeed, RAMP_STEPS);
         stepper.rotate(1);
       }
       Serial.println("SYSTEM_STARTED");
@@ -78,9 +77,8 @@ void checkSerialCommands() {
       if (newrpm > 0) {
         targetrpm = newrpm;
         stepspeed = calcStepSpeed(targetrpm);
-        ramp = calcRamp(currentrpm, targetrpm);
         if (systemActive) {
-          stepper.setSpeedSteps(stepspeed, ramp);
+          stepper.setSpeedSteps(stepspeed, RAMP_STEPS);
           stepper.rotate(1);
         }
         currentrpm = targetrpm;
