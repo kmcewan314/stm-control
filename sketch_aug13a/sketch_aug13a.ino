@@ -7,8 +7,8 @@ const int STEP_ENC_PIN = 14;
 int STEPS_PER_REV = 3200; // controlled by dip switches
 int STEP_PULSES_PER_REV = 1000; // only change if changing motors
 
-float POSITIVE_MAX_ACC = 25.1;
-float NEGATIVE_MAX_ACC = -10.0;
+float ACCEL_UP = 2000.0;
+float ACCEL_DOWN = 2000.0;
 
 int SAMPLE_INTERVAL = 5000; // how often to record motor positions, in microseconds
 volatile int targetrpm = 0;
@@ -29,15 +29,20 @@ long mot_step_count = 0;
 void stepEncoderISR() { step_edge_count++; }
 
 int calcRamp(int oldrpm, int newrpm) {
-  int delta = newrpm - oldrpm;
-  if (delta > 0) {
-    // speeding up
-    float exact_ramp = (delta * delta * 0.0055) / POSITIVE_MAX_ACC;
-    return static_cast<int>(exact_ramp);
-  } else {
-    float exact_ramp = (delta * delta * 0.0055) / NEGATIVE_MAX_ACC;
-    return -1 * static_cast<int>(exact_ramp);
-  }
+  if (oldrpm == newrpm) return 1;
+
+  // convert to steps per second
+  float v_old = ((float)oldrpm * STEP_PER_REV) / 60.0;
+  float v_new = ((float)newrpm * STEPS_PER_REV) / 60.0;
+
+  float accel = (v_old > v_new) ? ACCEL_DOWN : ACCEL_UP;
+
+  // s = | v_new^2 - v_old^2 | / (2 * a)
+  steps_needed = fabsf((v_new * v_new) - (v_old * v_old)) / (2.0 * accel);
+
+  int ramp_steps = static_cast<int>(steps_needed);
+  return (ramp_steps < 1) ? 1 : ramp_steps;
+  
 }
 
 int calcStepSpeed(int RPM) {
