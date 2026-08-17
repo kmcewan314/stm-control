@@ -1,4 +1,3 @@
-#include <FreeRTOS.h>
 #include <FastAccelStepper.h>
 
 // --- pin definitions ---
@@ -17,8 +16,8 @@ const int MIR_ENC_PIN = 15;
 // **** EDITABLE VARIABLES ***
 
 // --- motor resolutions ---
-int OBJ_STEPS_PER_REV = 3200; // controlled by dip switches
-int MIR_STEPS_PER_REV = 3200;
+int OBJ_STEPS_PER_REV = 8000; // controlled by dip switches
+int MIR_STEPS_PER_REV = 8000;
 
 int OBJ_ENC_PPR = 1000; // only change if changing motors
 int MIR_ENC_PPR = 1000; 
@@ -31,8 +30,8 @@ int TRIG_LENGTH = 2; // how long the trigger pulse is, in *micro*seconds
 // *** END EDITABLE VARIABLES ***
 
 // convert intervals to microseconds
-int TRIG_INTERVAL_US = TRIG_INTERVAL_MS * 1000;
-int SAMPLE_INTERVAL_US = SAMPLE_INTERVAL_MS * 1000;
+unsigned long TRIG_INTERVAL_US = TRIG_INTERVAL_MS * 1000;
+unsigned long SAMPLE_INTERVAL_US = SAMPLE_INTERVAL_MS * 1000;
 
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *obj_stepper = NULL;
@@ -41,20 +40,36 @@ FastAccelStepper *mir_stepper = NULL;
 // shared states
 volatile bool systemActive = false;
 volatile int target_obj_rpm = 60;
-volatile int target_mir_rpm = 30;
+volatile int target_mir_rpm = 40;
 
 // --- ISR variables ---
-volatile long obj_edge_count = 0;
-volatile long mir_edge_count = 0;
+volatile unsigned long obj_edge_count = 0;
+volatile unsigned long obj_last_edge_time = 0;
+volatile unsigned long mir_edge_count = 0;
+volatile unsigned long mir_last_edge_time = 0;
 
 // --- logging variables ---
 unsigned long last_sample_time = 0;
 unsigned long last_trig_time = 0;
+bool pending_trig = false;
 
 
 // --- interrupt service routines (ISR) ---
-void objEncoderISR() { obj_edge_count++; }
-void mirEncoderISR() { mir_edge_count++; }
+void objEncoderISR() { 
+  unsigned long now = micros();
+  if (now - obj_last_edge_time > 250) {
+    obj_edge_count++;
+    obj_last_edge_time = now;
+  }
+  
+}
+void mirEncoderISR() { 
+  unsigned long now = micros();
+  if (now - mir_last_edge_time > 250) {
+    mir_edge_count++;
+    mir_last_edge_time = now;
+  }
+}
 
 // --- other functions ---
 // send pulse
@@ -129,10 +144,10 @@ void checkSerialCommands() {
 }
 
 // --- runtime code ---
-// *** core 0: encoders and trigger ***
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
+  Serial.setTimeout(10);
 
   pinMode(TRIG_PIN, OUTPUT);
   digitalWrite(TRIG_PIN, HIGH);
@@ -150,14 +165,12 @@ void setup() {
 
   // configure acceleration curves
   if (obj_stepper) {
-    obj_stepper->setDirectionPin(OBJ_DIR_PIN);
-    obj_stepper->setEnablePin(-1);
+    obj_stepper->setDirectionPin(OBJ_DIR_PIN, false);
     obj_stepper->setAcceleration(2500);
-    obj_stepper->setLinearAcceleration(400);
+    obj_stepper->setLinearAcceleration(800);
   }
   if (mir_stepper) {
     mir_stepper->setDirectionPin(MIR_DIR_PIN);
-    mir_stepper->setEnablePin(-1);
     mir_stepper->setAcceleration(2500);
     mir_stepper->setLinearAcceleration(400);
   }
@@ -173,12 +186,10 @@ void loop() {
 
   // camera trigger & data logging only sent when system is running
   if (systemActive) {
-    bool trig_sent = false;
-
     // --- trigger signal ---
     if (now_us - last_trig_time >= TRIG_INTERVAL_US) {
       last_trig_time = now_us;
-      trig_sent = true;
+      pending_trig = true;
       sendTrigPulse();
     }
   
@@ -204,7 +215,8 @@ void loop() {
       Serial.print(",");
       Serial.print(mir_deg, 2);
       Serial.print(",");
-      Serial.println(trig_sent);
+      Serial.println(pending_trig? 1 : 0);
+      pending_trig = false;
     }
   }
 }
