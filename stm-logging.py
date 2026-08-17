@@ -57,17 +57,26 @@ btn_start.setStyleSheet("background-color: #2e7d32; color: white; font-weight: b
 btn_stop = QtWidgets.QPushButton("STOP")
 btn_stop.setStyleSheet("background-color: #c62828; color: white; font-weight: bold;")
 
-rpm_label = QtWidgets.QLabel("target RPM:")
-rpm_input = QtWidgets.QLineEdit("60")
-rpm_input.setFixedWidth(80)
-btn_set_rpm = QtWidgets.QPushButton("set speed")
+obj_rpm_label = QtWidgets.QLabel("target object RPM:")
+obj_rpm_input = QtWidgets.QLineEdit("60")
+obj_rpm_input.setFixedWidth(80)
+btn_set_obj_rpm = QtWidgets.QPushButton("set speed")
+
+mir_rpm_label = QtWidgets.QLabel("target mirror RPM:")
+mir_rpm_input = QtWidgets.QLineEdit("40")
+mir_rpm_input.setFixedWidth(80)
+btn_set_mir_rpm = QtWidgets.QPushButton("set speed")
 
 control_layout.addWidget(btn_start)
 control_layout.addWidget(btn_stop)
 control_layout.addSpacing(20)
-control_layout.addWidget(rpm_label)
-control_layout.addWidget(rpm_input)
-control_layout.addWidget(btn_set_rpm)
+control_layout.addWidget(obj_rpm_label)
+control_layout.addWidget(obj_rpm_input)
+control_layout.addWidget(btn_set_obj_rpm)
+control_layout.addSpacing(20)
+control_layout.addWidget(mir_rpm_label)
+control_layout.addWidget(mir_rpm_input)
+control_layout.addWidget(btn_set_mir_rpm)
 control_layout.addStretch()
 
 main_layout.addLayout(control_layout)
@@ -104,17 +113,26 @@ def send_stop():
     if ser.is_open:
         ser.write(b"STOP\n")
 
-def send_rpm():
+def send_obj_rpm():
     if ser.is_open:
-        rpm_val = rpm_input.text().strip()
+        rpm_val = obj_rpm_input.text().strip()
         if rpm_val.isdigit() and int(rpm_val) > 0:
-            cmd = f"{rpm_val}\n".encode("utf-8")
+            cmd = f"OBJ:{rpm_val}\n".encode("utf-8")
+            ser.write(cmd)
+
+def send_mir_rpm():
+    if ser.is_open:
+        rpm_val = mir_rpm_input.text().strip()
+        if rpm_val.isdigit() and int(rpm_val) > 0:
+            cmd = f"MIR:{rpm_val}\n".encode("utf-8")
             ser.write(cmd)
 
 btn_start.clicked.connect(send_start)
 btn_stop.clicked.connect(send_stop)
-btn_set_rpm.clicked.connect(send_rpm)
-rpm_input.returnPressed.connect(send_rpm)
+btn_set_obj_rpm.clicked.connect(send_obj_rpm)
+obj_rpm_input.returnPressed.connect(send_obj_rpm)
+btn_set_mir_rpm.clicked.connect(send_mir_rpm)
+mir_rpm_input.returnPressed.connect(send_mir_rpm)
 
 # --- speed calculations ---
 def calcSpeed(angle_window, time_window):
@@ -145,7 +163,7 @@ def update():
     while ser.in_waiting > 0:
         try:
             line = ser.readline().decode("utf-8", errors="ignore").strip()
-            if not line or line.startswith("Target") or line.startswith("SUCCESS") or line.startswith("SYSTEM"):
+            if not line or line.startswith("SYSTEM") or line.startswith("SUCCESS"):
                 continue
 
             parts = line.split(",")
