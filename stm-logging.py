@@ -8,10 +8,13 @@ import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore, QtWidgets
 
 # --- configuration ---
-port_name = "/dev/cu.debug-console"
+port_name = "COM3"
 baud = 115200
 filename = "stm_data_" + time.strftime("%Y_%m_%d-%H_%M_%S") + ".csv"
-window_size = 1000 # how many data points to show at once
+filepath = "C:\\Users\\mitmu\\Documents\\spacetime-modulator\\stm_motor_recordings\\"
+sample_rate = 5 # set in arduino, informs program of sample rate in milliseconds
+window_size = 2000 # how many data points to show at once
+speed_average_samples = 50 # how many data points to average for speed calculations
 
 # --- set up serial port ---
 try:
@@ -20,13 +23,18 @@ except serial.SerialException:
     print("SerialException: serial port could not be opened")
 
 # --- csv file setup ---
-csv_file = open(filename, "w", newline="")
+fullname = "".join([filepath, filename])
+
+csv_file = open(fullname, "w", newline="")
 csv_writer = csv.writer(csv_file)
 csv_writer.writerow(["Timestamp", "Object_Angle", "Mirror_Angle", "Trigger_Sent"])
 
 # --- rolling window buffers ---
 obj_history = deque(maxlen=window_size)
 mir_history = deque(maxlen=window_size)
+obj_short_hist = deque(maxlen=speed_average_samples)
+mir_short_hist = deque(maxlen=speed_average_samples)
+time_short_hist = deque(maxlen=speed_average_samples)
 
 # -- pyqt gui setup ---
 app = QtWidgets.QApplication(sys.argv)
@@ -49,20 +57,38 @@ btn_start.setStyleSheet("background-color: #2e7d32; color: white; font-weight: b
 btn_stop = QtWidgets.QPushButton("STOP")
 btn_stop.setStyleSheet("background-color: #c62828; color: white; font-weight: bold;")
 
-rpm_label = QtWidgets.QLabel("target RPM:")
-rpm_input = QtWidgets.QLineEdit("60")
-rpm_input.setFixedWidth(80)
-btn_set_rpm = QtWidgets.QPushButton("set speed")
+obj_rpm_label = QtWidgets.QLabel("target object RPM:")
+obj_rpm_input = QtWidgets.QLineEdit("60")
+obj_rpm_input.setFixedWidth(80)
+btn_set_obj_rpm = QtWidgets.QPushButton("set speed")
+
+mir_rpm_label = QtWidgets.QLabel("target mirror RPM:")
+mir_rpm_input = QtWidgets.QLineEdit("40")
+mir_rpm_input.setFixedWidth(80)
+btn_set_mir_rpm = QtWidgets.QPushButton("set speed")
 
 control_layout.addWidget(btn_start)
 control_layout.addWidget(btn_stop)
 control_layout.addSpacing(20)
-control_layout.addWidget(rpm_label)
-control_layout.addWidget(rpm_input)
-control_layout.addWidget(btn_set_rpm)
+control_layout.addWidget(obj_rpm_label)
+control_layout.addWidget(obj_rpm_input)
+control_layout.addWidget(btn_set_obj_rpm)
+control_layout.addSpacing(20)
+control_layout.addWidget(mir_rpm_label)
+control_layout.addWidget(mir_rpm_input)
+control_layout.addWidget(btn_set_mir_rpm)
 control_layout.addStretch()
 
 main_layout.addLayout(control_layout)
+
+# status bar
+status_bar = QtWidgets.QStatusBar()
+actual_obj_rpm = QtWidgets.QLabel("actual object speed: 0 RPM")
+actual_mir_rpm = QtWidgets.QLabel("actual mirror speed: 0 RPM")
+status_bar.addPermanentWidget(actual_obj_rpm)
+status_bar.addPermanentWidget(actual_mir_rpm)
+
+main_window.setStatusBar(status_bar)
 
 # pyqtgraph layout
 plot_widget = pg.GraphicsLayoutWidget()
@@ -87,17 +113,48 @@ def send_stop():
     if ser.is_open:
         ser.write(b"STOP\n")
 
-def send_rpm():
+def send_obj_rpm():
     if ser.is_open:
-        rpm_val = rpm_input.text().strip()
+        rpm_val = obj_rpm_input.text().strip()
         if rpm_val.isdigit() and int(rpm_val) > 0:
-            cmd = f"{rpm_val}\n".encode("utf-8")
+            cmd = f"OBJ:{rpm_val}\n".encode("utf-8")
+            ser.write(cmd)
+
+def send_mir_rpm():
+    if ser.is_open:
+        rpm_val = mir_rpm_input.text().strip()
+        if rpm_val.isdigit() and int(rpm_val) > 0:
+            cmd = f"MIR:{rpm_val}\n".encode("utf-8")
             ser.write(cmd)
 
 btn_start.clicked.connect(send_start)
 btn_stop.clicked.connect(send_stop)
-btn_set_rpm.clicked.connect(send_rpm)
-rpm_input.returnPressed.connect(send_rpm)
+btn_set_obj_rpm.clicked.connect(send_obj_rpm)
+obj_rpm_input.returnPressed.connect(send_obj_rpm)
+btn_set_mir_rpm.clicked.connect(send_mir_rpm)
+mir_rpm_input.returnPressed.connect(send_mir_rpm)
+
+# --- speed calculations ---
+def calcSpeed(angle_window, time_window):
+    if len(angle_window) < 2:
+        # if only 1 sample in window, can't calculate
+        return 0.0
+
+    distance = angle_window[-1] - angle_window[0] # get degrees traveled durign the window
+    if distance < 0:
+        # if object has wrapped around from 360 back to 0, it's negative so add 360
+        distance += 360
+
+    # time in seconds = time delta / 1 million microseconds per second
+    time_sec = (time_window[-1] - time_window[0]) / 1000000.0
+    if not time_sec:
+        # can't divide by 0
+        return 0.0
+
+    # degrees per second = (degrees traveled)/(time in seconds)
+    dps = (distance/time_sec)
+    # rev per minute = (degrees per s) * (60 seconds per minute) / (360 degrees per rev)
+    return int(dps/6.0)
 
 # --- main loop ---
 def update():
@@ -106,21 +163,17 @@ def update():
     while ser.in_waiting > 0:
         try:
             line = ser.readline().decode("utf-8", errors="ignore").strip()
-            if not line or line.startswith("Target") or line.startswith("SUCCESS") or line.startswith("SYSTEM"):
+            if not line or line.startswith("SYSTEM") or line.startswith("SUCCESS"):
                 continue
 
             parts = line.split(",")
             timestamp, obj_val, mir_val, trig_sent = None, None, None, None
 
-            for part in parts:
-                if "Timestamp:" in part:
-                    timestamp = int(part.split(":")[1])
-                elif "Object_Angle:" in part:
-                    obj_val = float(part.split(":")[1])
-                elif "Mirror_Angle:" in part:
-                    mir_val = float(part.split(":")[1])
-                elif "Trigger_Sent:" in part:
-                    trig_sent = bool(int(part.split(":")[1]))
+            if len(parts) == 4:
+                timestamp = int(parts[0])
+                obj_val = float(parts[1])
+                mir_val = float(parts[2])
+                trig_sent = bool(int(parts[3]))
 
             if None not in {timestamp, obj_val, mir_val, trig_sent}:
                 updated = True
@@ -131,6 +184,9 @@ def update():
                 # append to rolling buffers
                 obj_history.append(obj_val)
                 mir_history.append(mir_val)
+                obj_short_hist.append(obj_val)
+                mir_short_hist.append(mir_val)
+                time_short_hist.append(timestamp)
 
         except (ValueError, IndexError):
             # skip unparseable lines
@@ -139,6 +195,11 @@ def update():
         # update plot data
         curve_obj.setData(list(obj_history))
         curve_mir.setData(list(mir_history))
+
+        obj_speed = calcSpeed(obj_short_hist, time_short_hist)
+        mir_speed = calcSpeed(mir_short_hist, time_short_hist)
+        actual_obj_rpm.setText(f"actual object speed: {obj_speed} RPM")
+        actual_mir_rpm.setText(f"actual mirror speed: {mir_speed} RPM")
 
 # start timer and cleanup
 timer = QtCore.QTimer()
