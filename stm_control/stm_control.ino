@@ -1,7 +1,7 @@
 #include <FastAccelStepper.h>
 
 // --- pin definitions ---
-const int TRIG_PIN = 0;
+const int TRIG_PIN = 5;
 
 const int MIR_PUL_PIN = 10;
 const int MIR_DIR_PIN = 11;
@@ -57,7 +57,7 @@ bool pending_trig = false;
 // --- interrupt service routines (ISR) ---
 void objEncoderISR() { 
   unsigned long now = micros();
-  if (now - obj_last_edge_time > 250) {
+  if (now - obj_last_edge_time > 499) {
     obj_edge_count++;
     obj_last_edge_time = now;
   }
@@ -65,7 +65,7 @@ void objEncoderISR() {
 }
 void mirEncoderISR() { 
   unsigned long now = micros();
-  if (now - mir_last_edge_time > 250) {
+  if (now - mir_last_edge_time > 500) {
     mir_edge_count++;
     mir_last_edge_time = now;
   }
