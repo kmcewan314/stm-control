@@ -20,7 +20,7 @@ int OBJ_STEPS_PER_REV = 8000; // controlled by dip switches
 int MIR_STEPS_PER_REV = 8000;
 
 int OBJ_ENC_PPR = 1000; // only change if changing motors
-int MIR_ENC_PPR = 1000; 
+int MIR_ENC_PPR = 2500; 
 
 // --- output timing ---
 int SAMPLE_INTERVAL_MS = 5; // how often to record motor positions, in milliseconds
