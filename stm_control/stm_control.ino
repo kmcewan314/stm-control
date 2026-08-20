@@ -166,7 +166,7 @@ void setup() {
   // configure acceleration curves
   if (obj_stepper) {
     obj_stepper->setDirectionPin(OBJ_DIR_PIN, false);
-    obj_stepper->setAcceleration(2500);
+    obj_stepper->setAcceleration(1000);
     obj_stepper->setLinearAcceleration(800);
   }
   if (mir_stepper) {
