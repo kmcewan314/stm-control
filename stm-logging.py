@@ -63,7 +63,7 @@ obj_rpm_input.setFixedWidth(80)
 btn_set_obj_rpm = QtWidgets.QPushButton("set speed")
 
 mir_rpm_label = QtWidgets.QLabel("target mirror RPM:")
-mir_rpm_input = QtWidgets.QLineEdit("40")
+mir_rpm_input = QtWidgets.QLineEdit("20")
 mir_rpm_input.setFixedWidth(80)
 btn_set_mir_rpm = QtWidgets.QPushButton("set speed")
 
@@ -116,14 +116,14 @@ def send_stop():
 def send_obj_rpm():
     if ser.is_open:
         rpm_val = obj_rpm_input.text().strip()
-        if rpm_val.isdigit() and int(rpm_val) > 0:
+        if rpm_val.isdigit() and int(rpm_val) >= 0:
             cmd = f"OBJ:{rpm_val}\n".encode("utf-8")
             ser.write(cmd)
 
 def send_mir_rpm():
     if ser.is_open:
         rpm_val = mir_rpm_input.text().strip()
-        if rpm_val.isdigit() and int(rpm_val) > 0:
+        if rpm_val.isdigit() and int(rpm_val) >= 0:
             cmd = f"MIR:{rpm_val}\n".encode("utf-8")
             ser.write(cmd)
 

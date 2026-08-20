@@ -9,8 +9,8 @@ const int MIR_DIR_PIN = 11;
 const int OBJ_PUL_PIN = 12;
 const int OBJ_DIR_PIN = 13;
 
-const int OBJ_ENC_PIN = 14;
-const int MIR_ENC_PIN = 15;
+const int MIR_ENC_PIN = 16;
+const int OBJ_ENC_PIN = 17;
 
 
 // **** EDITABLE VARIABLES ***
@@ -24,7 +24,7 @@ int MIR_ENC_PPR = 2500;
 
 // --- output timing ---
 int SAMPLE_INTERVAL_MS = 5; // how often to record motor positions, in milliseconds
-int TRIG_INTERVAL_MS = 100; // how often to send trigger signal to camera, in milliseconds
+int TRIG_INTERVAL_MS = 1000; // how often to send trigger signal to camera, in milliseconds
 int TRIG_LENGTH = 2; // how long the trigger pulse is, in *micro*seconds
 
 // *** END EDITABLE VARIABLES ***
@@ -40,7 +40,7 @@ FastAccelStepper *mir_stepper = NULL;
 // shared states
 volatile bool systemActive = false;
 volatile int target_obj_rpm = 60;
-volatile int target_mir_rpm = 40;
+volatile int target_mir_rpm = 20;
 
 // --- ISR variables ---
 volatile unsigned long obj_edge_count = 0;
@@ -57,7 +57,7 @@ bool pending_trig = false;
 // --- interrupt service routines (ISR) ---
 void objEncoderISR() { 
   unsigned long now = micros();
-  if (now - obj_last_edge_time > 499) {
+  if (now - obj_last_edge_time > 450) {
     obj_edge_count++;
     obj_last_edge_time = now;
   }
@@ -121,7 +121,7 @@ void checkSerialCommands() {
       Serial.println("SYSTEM_STOPPED");
     } else if (cmd.startsWith("OBJ:")) {
       int newRPM = cmd.substring(4).toInt();
-      if (newRPM > 0) {
+      if (newRPM >= 0) {
         target_obj_rpm = newRPM;
         if (systemActive) {
           setRPM(obj_stepper, target_obj_rpm, OBJ_STEPS_PER_REV);
@@ -131,7 +131,7 @@ void checkSerialCommands() {
       }
     } else if (cmd.startsWith("MIR:")) {
       int newRPM = cmd.substring(4).toInt();
-      if (newRPM > 0) {
+      if (newRPM >= 0) {
         target_mir_rpm = newRPM;
         if (systemActive) {
           setRPM(mir_stepper, target_mir_rpm, MIR_STEPS_PER_REV);
