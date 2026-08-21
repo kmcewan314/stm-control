@@ -27,7 +27,7 @@ fullname = "".join([filepath, filename])
 
 csv_file = open(fullname, "w", newline="")
 csv_writer = csv.writer(csv_file)
-csv_writer.writerow(["Timestamp", "Object_Angle", "Mirror_Angle", "Trigger_Sent"])
+csv_writer.writerow(["Timestamp", "Trigger_Sent"])
 
 # --- rolling window buffers ---
 obj_history = deque(maxlen=window_size)
@@ -82,26 +82,26 @@ control_layout.addStretch()
 main_layout.addLayout(control_layout)
 
 # status bar
-status_bar = QtWidgets.QStatusBar()
-actual_obj_rpm = QtWidgets.QLabel("actual object speed: 0 RPM")
-actual_mir_rpm = QtWidgets.QLabel("actual mirror speed: 0 RPM")
-status_bar.addPermanentWidget(actual_obj_rpm)
-status_bar.addPermanentWidget(actual_mir_rpm)
+# status_bar = QtWidgets.QStatusBar()
+# actual_obj_rpm = QtWidgets.QLabel("actual object speed: 0 RPM")
+# actual_mir_rpm = QtWidgets.QLabel("actual mirror speed: 0 RPM")
+# status_bar.addPermanentWidget(actual_obj_rpm)
+# status_bar.addPermanentWidget(actual_mir_rpm)
 
-main_window.setStatusBar(status_bar)
+# main_window.setStatusBar(status_bar)
 
 # pyqtgraph layout
-plot_widget = pg.GraphicsLayoutWidget()
-main_layout.addWidget(plot_widget)
+# plot_widget = pg.GraphicsLayoutWidget()
+# main_layout.addWidget(plot_widget)
 
-plot = plot_widget.addPlot(title="motor angle (°)")
-plot.setYRange(0,360, padding=0.05)
-plot.setLabel("bottom", "samples")
-plot.setLabel("left", "angle (°)")
-plot.addLegend()
+# plot = plot_widget.addPlot(title="motor angle (°)")
+# plot.setYRange(0,360, padding=0.05)
+# plot.setLabel("bottom", "samples")
+# plot.setLabel("left", "angle (°)")
+# plot.addLegend()
 
-curve_obj = plot.plot(pen=pg.mkPen("r", width=2), name="object motor")
-curve_mir = plot.plot(pen=pg.mkPen("b", width=2), name="mirror motor")
+# curve_obj = plot.plot(pen=pg.mkPen("r", width=2), name="object motor")
+# curve_mir = plot.plot(pen=pg.mkPen("b", width=2), name="mirror motor")
 
 
 # --- serial command handlers ---
@@ -167,39 +167,39 @@ def update():
                 continue
 
             parts = line.split(",")
-            timestamp, obj_val, mir_val, trig_sent = None, None, None, None
+            timestamp, trig_sent = None, None
 
             if len(parts) == 4:
                 timestamp = int(parts[0])
-                obj_val = float(parts[1])
-                mir_val = float(parts[2])
-                trig_sent = bool(int(parts[3]))
+                # obj_val = float(parts[1])
+                # mir_val = float(parts[2])
+                trig_sent = bool(int(parts[1]))
 
-            if None not in {timestamp, obj_val, mir_val, trig_sent}:
+            if None not in {timestamp, trig_sent}:
                 updated = True
                 # write to csv
-                csv_writer.writerow([timestamp, obj_val, mir_val, trig_sent])
+                csv_writer.writerow([timestamp, trig_sent])
                 csv_file.flush()
 
                 # append to rolling buffers
-                obj_history.append(obj_val)
-                mir_history.append(mir_val)
-                obj_short_hist.append(obj_val)
-                mir_short_hist.append(mir_val)
-                time_short_hist.append(timestamp)
+                # obj_history.append(obj_val)
+                # mir_history.append(mir_val)
+                # obj_short_hist.append(obj_val)
+                # mir_short_hist.append(mir_val)
+                # time_short_hist.append(timestamp)
 
         except (ValueError, IndexError):
             # skip unparseable lines
             pass
-    if updated:
-        # update plot data
-        curve_obj.setData(list(obj_history))
-        curve_mir.setData(list(mir_history))
+    # if updated:
+        # # update plot data
+        # curve_obj.setData(list(obj_history))
+        # curve_mir.setData(list(mir_history))
 
-        obj_speed = calcSpeed(obj_short_hist, time_short_hist)
-        mir_speed = calcSpeed(mir_short_hist, time_short_hist)
-        actual_obj_rpm.setText(f"actual object speed: {obj_speed} RPM")
-        actual_mir_rpm.setText(f"actual mirror speed: {mir_speed} RPM")
+        # obj_speed = calcSpeed(obj_short_hist, time_short_hist)
+        # mir_speed = calcSpeed(mir_short_hist, time_short_hist)
+        # actual_obj_rpm.setText(f"actual object speed: {obj_speed} RPM")
+        # actual_mir_rpm.setText(f"actual mirror speed: {mir_speed} RPM")
 
 # start timer and cleanup
 timer = QtCore.QTimer()
